@@ -79,6 +79,11 @@ class CameraManager(private val context: Context) {
         cam.cameraControl.startFocusAndMetering(action)
     }
 
+    fun focusOnPoint(previewView: PreviewView, x: Float, y: Float) = focus(previewView, x, y)
+
+    fun startCamera(lifecycleOwner: LifecycleOwner, previewView: PreviewView, onInitialized: () -> Unit = {}) =
+        initialize(lifecycleOwner, previewView, onInitialized)
+
     private fun bindCamera(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
         val provider = cameraProvider ?: return
         provider.unbindAll()

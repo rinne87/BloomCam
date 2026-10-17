@@ -129,7 +129,7 @@ fun CameraScreen(viewModel: BloomCamViewModel) {
                         detectTapGestures { offset ->
                             focusPoint = Pair(offset.x, offset.y)
                             previewView?.let { pv ->
-                                viewModel.cameraManager.focusOnPoint(pv, offset.x, offset.y)
+                                viewModel.cameraManager.focus(pv, offset.x, offset.y)
                             }
                         }
                     }
@@ -144,7 +144,7 @@ fun CameraScreen(viewModel: BloomCamViewModel) {
                             )
                             scaleType = PreviewView.ScaleType.FILL_CENTER
                             previewView = this
-                            viewModel.cameraManager.startCamera(lifecycleOwner, this)
+                            viewModel.cameraManager.initialize(lifecycleOwner, this)
                         }
                     },
                     modifier = Modifier.fillMaxSize()
