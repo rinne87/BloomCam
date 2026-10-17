@@ -20,7 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.senjy.bloomcam.data.CameraMode
 import com.senjy.bloomcam.data.FilterType
 import com.senjy.bloomcam.ui.theme.BloomGold
 import com.senjy.bloomcam.ui.theme.BloomPink
@@ -40,8 +40,10 @@ import com.senjy.bloomcam.ui.theme.White
 
 @Composable
 fun FilterBar(
+    filters: List<FilterType>,
     selectedFilter: FilterType,
     intensity: Float,
+    cameraMode: CameraMode,
     onFilterSelected: (FilterType) -> Unit,
     onIntensityChanged: (Float) -> Unit,
     modifier: Modifier = Modifier
@@ -55,6 +57,17 @@ fun FilterBar(
     ) {
         // Intensity Slider (visible if not original)
         if (selectedFilter != FilterType.ORIGINAL) {
+            val sliderLabel = when (cameraMode) {
+                CameraMode.PORTRAIT -> "뽀샤시 강도"
+                CameraMode.OBJECT -> "컬러/선명도"
+                CameraMode.FIGURE_GUNPLA -> "먹선/무광 강도"
+            }
+            val accentColor = when (cameraMode) {
+                CameraMode.PORTRAIT -> BloomPink
+                CameraMode.OBJECT -> Color(0xFF00E676)
+                CameraMode.FIGURE_GUNPLA -> Color(0xFF00E5FF)
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -62,7 +75,7 @@ fun FilterBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "뽀샤시 강도",
+                    text = sliderLabel,
                     color = TextSecondary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
@@ -73,8 +86,8 @@ fun FilterBar(
                     onValueChange = onIntensityChanged,
                     valueRange = 0.0f..1.0f,
                     colors = SliderDefaults.colors(
-                        thumbColor = BloomPink,
-                        activeTrackColor = BloomPink,
+                        thumbColor = accentColor,
+                        activeTrackColor = accentColor,
                         inactiveTrackColor = Color.DarkGray
                     ),
                     modifier = Modifier.weight(1f)
@@ -82,7 +95,7 @@ fun FilterBar(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "${(intensity * 100).toInt()}%",
-                    color = BloomPink,
+                    color = accentColor,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.width(36.dp)
@@ -90,14 +103,20 @@ fun FilterBar(
             }
         }
 
-        // Horizontal list of filters
+        // Horizontal list of filters tailored to active CameraMode
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(FilterType.values()) { filter ->
+            items(filters, key = { it.id }) { filter ->
                 val isSelected = filter == selectedFilter
+                val accentColor = when (cameraMode) {
+                    CameraMode.PORTRAIT -> BloomPink
+                    CameraMode.OBJECT -> Color(0xFF00E676)
+                    CameraMode.FIGURE_GUNPLA -> Color(0xFF00E5FF)
+                }
+
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier

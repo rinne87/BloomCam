@@ -63,16 +63,16 @@ import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.senjy.bloomcam.data.AspectRatioOption
+import com.senjy.bloomcam.data.CameraMode
 import com.senjy.bloomcam.data.FilterType
 import com.senjy.bloomcam.ui.BloomCamViewModel
 import com.senjy.bloomcam.ui.components.FilterBar
 import com.senjy.bloomcam.ui.components.FocusRing
+import com.senjy.bloomcam.ui.components.ModeSelectorBar
 import com.senjy.bloomcam.ui.theme.BloomGold
 import com.senjy.bloomcam.ui.theme.BloomPink
-import com.senjy.bloomcam.ui.theme.DarkBackground
 import com.senjy.bloomcam.ui.theme.DarkGlass
 import com.senjy.bloomcam.ui.theme.PureBlack
-import com.senjy.bloomcam.ui.theme.TextPrimary
 import com.senjy.bloomcam.ui.theme.White
 
 @Composable
@@ -80,6 +80,8 @@ fun CameraScreen(viewModel: BloomCamViewModel) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    val cameraMode by viewModel.cameraMode.collectAsState()
+    val availableFilters by viewModel.availableFilters.collectAsState()
     val selectedFilter by viewModel.selectedFilter.collectAsState()
     val filterIntensity by viewModel.filterIntensity.collectAsState()
     val aspectRatio by viewModel.aspectRatio.collectAsState()
@@ -119,16 +121,20 @@ fun CameraScreen(viewModel: BloomCamViewModel) {
             }
 
             Box(
-                modifier = ratioModifier
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(ratioModifier)
+                    .clip(RoundedCornerShape(0.dp))
                     .pointerInput(Unit) {
                         detectTapGestures { offset ->
+                            focusPoint = Pair(offset.x, offset.y)
                             previewView?.let { pv ->
-                                viewModel.cameraManager.focus(pv, offset.x, offset.y)
-                                focusPoint = Pair(offset.x, offset.y)
+                                viewModel.cameraManager.focusOnPoint(pv, offset.x, offset.y)
                             }
                         }
                     }
             ) {
+                // AndroidView hosting CameraX PreviewView
                 AndroidView(
                     factory = { ctx ->
                         PreviewView(ctx).apply {
@@ -137,38 +143,40 @@ fun CameraScreen(viewModel: BloomCamViewModel) {
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
                             scaleType = PreviewView.ScaleType.FILL_CENTER
-                            viewModel.cameraManager.initialize(lifecycleOwner, this)
                             previewView = this
+                            viewModel.cameraManager.startCamera(lifecycleOwner, this)
                         }
                     },
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Real-time Preview Color/Tint Overlay for 뽀샤시 mood
+                // Real-time Tint & Soft Mood Overlay
                 if (selectedFilter != FilterType.ORIGINAL && filterIntensity > 0.05f) {
-                    val overlayColor = Color(
+                    val tintColor = Color(
                         red = selectedFilter.tintR,
                         green = selectedFilter.tintG,
                         blue = selectedFilter.tintB,
-                        alpha = (selectedFilter.tintAlpha * 0.45f * filterIntensity).coerceIn(0f, 1f)
+                        alpha = (selectedFilter.tintAlpha * filterIntensity).coerceIn(0.0f, 0.45f)
                     )
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(overlayColor)
+                            .background(tintColor)
                     )
                 }
 
-                // Focus animation ring
-                focusPoint?.let { (fx, fy) ->
-                    FocusRing(x = fx, y = fy) {
-                        focusPoint = null
-                    }
+                // Focus Ring Indicator
+                focusPoint?.let { (x, y) ->
+                    FocusRing(
+                        x = x,
+                        y = y,
+                        onAnimationEnd = { focusPoint = null }
+                    )
                 }
             }
         }
 
-        // 2. Top Bar Controls
+        // 2. Top Controls Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -196,27 +204,51 @@ fun CameraScreen(viewModel: BloomCamViewModel) {
                 )
             }
 
-            // Silent Shutter Badge
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = DarkGlass
+            // Silent Shutter Badge & Mode Indicator
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = DarkGlass
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.VolumeOff,
-                        contentDescription = "무음 셔터",
-                        tint = BloomPink,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VolumeOff,
+                            contentDescription = "무음 셔터",
+                            tint = BloomPink,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "무음",
+                            color = White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                val modeBadgeColor = when (cameraMode) {
+                    CameraMode.PORTRAIT -> BloomPink
+                    CameraMode.OBJECT -> Color(0xFF00E676)
+                    CameraMode.FIGURE_GUNPLA -> Color(0xFF00E5FF)
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = DarkGlass
+                ) {
                     Text(
-                        text = "무음 모드",
-                        color = White,
+                        text = cameraMode.badge,
+                        color = modeBadgeColor,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                     )
                 }
             }
@@ -240,16 +272,24 @@ fun CameraScreen(viewModel: BloomCamViewModel) {
             }
         }
 
-        // 3. Bottom Controls Area (Filter Bar + Shutter Area)
+        // 3. Bottom Controls Area (Mode Selector + Filter Bar + Shutter Area)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
         ) {
-            // Filter Bar
+            // Mode Selector Bar (인물 / 사물 / 피규어·건프라)
+            ModeSelectorBar(
+                currentMode = cameraMode,
+                onModeSelected = { viewModel.setCameraMode(it) }
+            )
+
+            // Dynamic Filter Bar based on selected Camera Mode
             FilterBar(
+                filters = availableFilters,
                 selectedFilter = selectedFilter,
                 intensity = filterIntensity,
+                cameraMode = cameraMode,
                 onFilterSelected = { viewModel.selectFilter(it) },
                 onIntensityChanged = { viewModel.setFilterIntensity(it) }
             )
@@ -259,7 +299,7 @@ fun CameraScreen(viewModel: BloomCamViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(PureBlack)
-                    .padding(horizontal = 32.dp, vertical = 24.dp),
+                    .padding(horizontal = 32.dp, vertical = 20.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -270,7 +310,6 @@ fun CameraScreen(viewModel: BloomCamViewModel) {
                         .clip(CircleShape)
                         .background(Color.DarkGray)
                         .clickable {
-                            // Open Gallery
                             val intent = Intent(Intent.ACTION_VIEW).apply {
                                 type = "image/*"
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -302,11 +341,17 @@ fun CameraScreen(viewModel: BloomCamViewModel) {
                 }
 
                 // Shutter Button
+                val shutterRingColor = when (cameraMode) {
+                    CameraMode.PORTRAIT -> BloomPink
+                    CameraMode.OBJECT -> Color(0xFF00E676)
+                    CameraMode.FIGURE_GUNPLA -> Color(0xFF00E5FF)
+                }
+
                 Box(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(CircleShape)
-                        .background(BloomPink.copy(alpha = 0.2f))
+                        .background(shutterRingColor.copy(alpha = 0.2f))
                         .border(4.dp, White, CircleShape)
                         .clickable(enabled = !isCapturing) {
                             viewModel.capturePhoto()
@@ -314,7 +359,7 @@ fun CameraScreen(viewModel: BloomCamViewModel) {
                     contentAlignment = Alignment.Center
                 ) {
                     if (isCapturing) {
-                        CircularProgressIndicator(color = BloomPink, modifier = Modifier.size(36.dp))
+                        CircularProgressIndicator(color = shutterRingColor, modifier = Modifier.size(36.dp))
                     } else {
                         Box(
                             modifier = Modifier
@@ -351,7 +396,7 @@ fun CameraScreen(viewModel: BloomCamViewModel) {
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 140.dp)
+                .padding(bottom = 170.dp)
         ) {
             SnackbarHost(hostState = snackbarHostState)
         }

@@ -118,7 +118,7 @@ class CameraManager(private val context: Context) {
         filter: FilterType,
         filterIntensity: Float,
         aspectRatioOption: AspectRatioOption,
-        onSuccess: (Uri, Bitmap) -> Unit,
+        onSuccess: (Uri, Bitmap, Bitmap) -> Unit,
         onError: (Exception) -> Unit
     ) {
         val capture = imageCapture ?: run {
@@ -165,7 +165,10 @@ class CameraManager(private val context: Context) {
                             orientedBitmap.recycle()
                         }
 
-                        // 3. Apply 뽀샤시 Beauty Filter
+                        // 3. Keep a pristine raw copy for loss-free photo studio re-editing
+                        val rawCopy = croppedBitmap.copy(croppedBitmap.config ?: Bitmap.Config.ARGB_8888, true)
+
+                        // 4. Apply Beauty / Studio / Gunpla Filter
                         val filteredBitmap = PhotoFilterEngine.applyFilter(
                             croppedBitmap,
                             filter,
@@ -175,11 +178,11 @@ class CameraManager(private val context: Context) {
                             croppedBitmap.recycle()
                         }
 
-                        // 4. Save to MediaStore (Pictures/BloomCam)
+                        // 5. Save to MediaStore (Pictures/BloomCam)
                         val savedUri = saveBitmapToGallery(filteredBitmap)
 
                         ContextCompat.getMainExecutor(context).execute {
-                            onSuccess(savedUri, filteredBitmap)
+                            onSuccess(savedUri, filteredBitmap, rawCopy)
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
